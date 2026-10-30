@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title>API Performance Monitor</title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}"
+    >
+</head>
+
+<body>
+
+<header class="hero">
+    <div>
+        <p class="eyebrow">OBSERVABILITY · RESPONSE HEALTH</p>
+
+        <h1>API Performance Monitor</h1>
+
+        <p class="subtitle">
+            Track response times, HTTP status codes,
+            availability, and performance.
+        </p>
+    </div>
+
+    <span class="live-pill">
+        <span></span> Monitor Dashboard
+    </span>
+</header>
+
+<main>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="messages">
+                {% for category, message in messages %}
+                    <div class="message {{ category }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <section class="panel">
+        <h2>Add an API</h2>
+
+        <p class="muted">
+            Enter an API endpoint that you own or are authorized to test.
+        </p>
+
+        <form action="{{ url_for('add_api') }}"
+              method="post"
+              class="add-form">
+
+            <label>
+                Display name
+                <input
+                    type="text"
+                    name="name"
+                    placeholder="My API"
+                    maxlength="100"
+                    required
+                >
+            </label>
+
+            <label>
+                Endpoint URL
+                <input
+                    type="url"
+                    name="url"
+                    placeholder="https://example.com/health"
+                    required
+                >
+            </label>
+
+            <button type="submit">+ Add API</button>
+
+        </form>
+    </section>
+
+    <section class="section-heading">
+        <div>
+            <h2>Monitored Endpoints</h2>
+            <p class="muted">
+                Select Check now to measure an endpoint.
+            </p>
+        </div>
+
+        <span class="count">
+            {{ cards|length }} endpoints
+        </span>
+    </section>
+
+    {% if cards %}
+
+        <div class="grid">
+
+            {% for item in cards %}
+
+                <article class="panel api-card">
+
+                    <div class="card-top">
+                        <div>
+                            <h3>{{ item.api.name }}</h3>
+
+                            <a
+                                class="endpoint"
+                                href="{{ item.api.url }}"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            >
+                                {{ item.api.url }}
+                            </a>
+                        </div>
+
+                        {% if item.latest and item.latest.is_success %}
+                            <span class="status good">Healthy</span>
+
+                        {% elif item.latest %}
+                            <span class="status bad">Issue</span>
+
+                        {% else %}
+                            <span class="status neutral">
+                                Not checked
+                            </span>
+                        {% endif %}
+                    </div>
+
+                    <div class="metrics">
+
+                        <div>
+                            <span>Latest Response</span>
+                            <strong>
+                                {% if item.latest %}
+                                    {{ item.latest.response_time_ms }} ms
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </strong>
+                        </div>
+
+                        <div>
+                            <span>HTTP Status</span>
+                            <strong>
+                                {% if item.latest and item.latest.status_code %}
+                                    {{ item.latest.status_code }}
+                                {% elif item.latest %}
+                                    No response
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </strong>
+                        </div>
+
+                        <div>
+                            <span>Success Rate</span>
+                            <strong>
+                                {% if item.success_rate is not none %}
+                                    {{ item.success_rate }}%
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </strong>
+                        </div>
+
+                        <div>
+                            <span>Average Response</span>
+                            <strong>
+                                {% if item.avg_ms is not none %}
+                                    {{ item.avg_ms }} ms
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </strong>
+                        </div>
+
+                    </div>
+
+                    {% if item.latest and item.latest.error %}
+                        <p class="error-detail">
+                            {{ item.latest.error }}
+                        </p>
+                    {% endif %}
+
+                    {% if item.latest %}
+                        <p class="checked">
+                            Last checked: {{ item.latest.checked_at }}
+                        </p>
+                    {% endif %}
+
+                    <div class="actions">
+
+                        <form
+                            action="{{ url_for('check_one', api_id=item.api.id) }}"
+                            method="post"
+                        >
+                            <button type="submit">Check now ↻</button>
+                        </form>
+
+                        <a
+                            class="secondary-button"
+                            href="{{ url_for('history', api_id=item.api.id) }}"
+                        >
+                            JSON History ↗
+                        </a>
+
+                        <form
+                            action="{{ url_for('delete_api', api_id=item.api.id) }}"
+                            method="post"
+                            onsubmit="return confirm('Delete this endpoint and its history?')"
+                        >
+                            <button class="delete" type="submit">
+                                Delete
+                            </button>
+                        </form>
+
+                    </div>
+
+                </article>
+
+            {% endfor %}
+
+        </div>
+
+    {% else %}
+
+        <section class="panel empty">
+            <div class="empty-icon">↗</div>
+
+            <h3>No endpoints yet</h3>
+
+            <p>
+                Add an API above, then press Check now
+                to record its first measurement.
+            </p>
+        </section>
+
+    {% endif %}
+
+    <section class="panel api-info">
+
+        <h2>Built-in JSON Endpoints</h2>
+
+        <div class="endpoint-row">
+            <code>GET /api/health</code>
+            <span>Service health check</span>
+            <a href="/api/health">Open ↗</a>
+        </div>
+
+        <div class="endpoint-row">
+            <code>GET /api/metrics</code>
+            <span>Metrics for all monitored endpoints</span>
+            <a href="/api/metrics">Open ↗</a>
+        </div>
+
+        <div class="endpoint-row">
+            <code>GET /api/history/&lt;id&gt;</code>
+            <span>Recent check history</span>
+        </div>
+
+    </section>
+
+    <p class="footnote">
+        Measurements are saved in SQLite.
+        Checks run manually in this version.
+    </p>
+
+</main>
+
+</body>
+</html>
